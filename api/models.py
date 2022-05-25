@@ -1,37 +1,33 @@
 from django.db import models
+from asgiref.sync import sync_to_async
+from django.conf import settings
+from utils.connect_db import init_django
+from django.utils import timezone
 
-class Robot(models.Model):
+init_django()
+
+class Product(models.Model):
+    url = models.URLField(max_length=200)
     name = models.CharField(max_length=100)
+    description = models.TextField()
+    memory = models.CharField(max_length=100)
+    ratings = models.CharField(max_length=7)
+    size = models.CharField(max_length=100)
+    value = models.CharField(max_length=100)
     
-    def __str__(self):
-        return self.name
-
-class RobotProcess(models.Model):
-    name = models.CharField(max_length=100)    
-    status = models.CharField(max_length=100, choices=[('running', 'running'), ('stopped', 'stopped')])
-    success = models.BooleanField(default=False)
-    error = models.CharField(max_length=100, null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
     
-    def __str__(self):
-        return self.name
-    
-
-class ProcessLog(models.Model):
-    process = models.ForeignKey(RobotProcess, on_delete=models.CASCADE)
-    log_type = models.CharField(max_length=100, choices=[('info', 'info'), ('error', 'error')])
-    message = models.CharField(max_length=100)
-    hostname = models.CharField(max_length=100)
-    cpu_usage = models.FloatField()
-    cpu_total = models.FloatField()
-    ram_usage = models.FloatField()
-    ram_total = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    
-    def __str__(self):
-        return f"{self.process.name} - {self.log_type} - {self.message}"
+    def save(self, *args, **kwargs):
+        #update at
+        if self.pk:
+            self.updated_at = timezone.now()
+        return super(Product, self).save(*args, **kwargs)
+        
     
     class Meta:
-        ordering = ['-created_at', '-process__created_at']
+        ordering = ('name',)
+        unique_together = ('name','value', 'size')
+        
+    
     

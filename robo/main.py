@@ -1,8 +1,8 @@
 from playwright.sync_api import sync_playwright
-import os, sys
+import os, sys, django
+from api.models import *
+from django.utils import timezone
 
-# SET ENVIRONMENT VARIABLES
-os.environ['PWDEBUG'] = '1'
 
 def check_url(argument):
     def decorator(function):
@@ -24,6 +24,7 @@ class Laptops:
     
     def get_details(self, url):
         details = {}
+        print('Getting details for:', url)
         self.page.goto(url)
                 
         div_details = self.page.locator('//div[@class="caption"]/parent::div/parent::div[@class="row"]')        
@@ -38,19 +39,31 @@ class Laptops:
         # Capture price details
         swatches = div_details.locator('//div[@class="swatches"]/button').element_handles()
         # Click swatches detail, and get prices
-        details['swatches'] = { s.inner_text(): price_field.inner_text() for s in swatches if not s.click() }
-           
-        return details
+        swatches = { s.inner_text(): price_field.inner_text() for s in swatches if not s.click() }
+        
+        # create product based on swatches
+        
+        products = []
+        for k, v in swatches.items():            
+            p = details.copy()
+            p['size'] = k
+            p['value'] = v
+            products.append(p)
+        
+        return products
     
     @check_url(url)
     def list_laptops(self):
         products = self.page.locator('//a[@class="title"]')
         if not products.count():
+            print('No products found')
             return []
         urls = [ self.base_url + p.get_attribute('href') for p in products.element_handles() if p.get_attribute('href')]
-        details = [ self.get_details(url) for url in urls ]
-        laptops = [ type('Laptop', (object,), detail) for detail in details ]
-        return laptops
+        print('Found {} products'.format(len(urls)))
+        products = []
+        for url in urls[:3]:
+            products += self.get_details(url)               
+        return products
    
 class Store(Laptops):
     base_url = 'https://webscraper.io'
@@ -62,46 +75,44 @@ class Store(Laptops):
     @property
     def laptops(self):
         return self.list_laptops()
-               
-    
-
-class _Laptops(Store):
-    laptops_url = 'computers/laptops'
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.laptops_url = self.store_url + self.laptops_url
-    
-    @check_url(laptops_url)
-    def go_to_laptops(self):
-        ...
 
 class Robot:
-    def __init__(self, *args, **kwargs):
+    def __init__(self,robot_name, *args, **kwargs):
         self.browser = None
         self.store = None
-    
+        self.products = Product.objects        
         
     def start(self):
+        
         with sync_playwright() as p:
-            # Start Chrome
-            self.browser = p.chromium.launch() 
-            self.page = self.browser.new_page()          
-            self.store = Store(self.page)
-        ...
+            print('Starting browser')                    
+            self.browser = p.chromium.launch()             
+            self.page = self.browser.new_page()                      
+            self.store = Store(self.page)      
+            print('Getting laptops')      
+            products = self.store.laptops
+        
+        prodcuts = [ Product(**p) for p in products ] 
+        products_save = []       
+        products_update = []
+        #check products to be updated
+        for p in prodcuts:
+            try:
+                products_update.append(
+                    Product.objects.get(name=p.name, size=p.size, value=p.value)
+                )                
+            except Product.DoesNotExist:
+                p.updated_at = timezone.now()
+                products_save.append(p)
+            except Product.MultipleObjectsReturned:
+                print('Multiple objects returned: {}'.format(p.name))
         
         
+        print('Saving {} products'.format(len(products_save)))
+        Product.objects.bulk_create(products_save)
+        print('Updating {} products'.format(len(products_update)))
+        Product.objects.bulk_update(products_update, ['ratings', 'memory', 'description', 'url'])
+        print('Done')
+        
+            
 
-process =  Robot()
-process.start()
-
-x.products()
-
-with sync_playwright() as p:
-    browser = p.chromium.launch()
-    page = browser.new_page()
-    page.pause()
-    page.goto("http://playwright.dev")
-    print(page.title())
-    page.pause()
-    browser.close()

@@ -1,22 +1,22 @@
 from django.urls import path, include
 from django.contrib.auth.models import User
-from api.models import Robot, RobotProcess, ProcessLog
+from api.models import Product
 from rest_framework import routers, serializers, viewsets
 
 # Serializers define the API representation.
-class RobotSerializer(serializers.HyperlinkedModelSerializer):
+class ProductSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
-        model = Robot
-        fields = ['name']
+        model = Product
+        fields = '__all__'
 
 # ViewSets define the view behavior.
-class RobotViewSet(viewsets.ModelViewSet):
-    queryset = Robot.objects.all()
-    serializer_class = RobotSerializer
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
 
 # Routers provide an easy way of automatically determining the URL conf.
 router = routers.DefaultRouter()
-router.register(r'robots', RobotViewSet)
+router.register(r'products', ProductViewSet)
 
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browsable API.
